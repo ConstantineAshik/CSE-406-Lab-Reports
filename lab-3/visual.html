@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UART Communication Stress Test Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Slate & Sky -->
+    <!-- Application Structure Plan: A single-page dashboard structure is used. The layout starts with a clear title and introduction. Key performance indicators (KPIs) for the "Best Configuration" are highlighted at the top for immediate insight. The core of the app is an interactive exploration section with filters for Baud Rate, Message Size, and Interval, allowing users to dynamically query the data. Results are displayed through a combination of dynamic text summaries and three interconnected charts showing Throughput, Message Rate, and Error Rate. This structure was chosen to transform the static report table into an engaging, explorable experience, enabling users to see the relationships between variables instantly. The final sections present the qualitative analysis and conclusions from the report to provide context and takeaways. -->
+    <!-- Visualization & Content Choices: Report Info: Throughput, Message Rate, Error Rate vs. Baud/Size/Interval. Goal: Compare performance under different conditions. Viz/Presentation: Interactive bar charts for Throughput and Message Rate, and a line chart for Error Rate to emphasize the spike at 115200 baud. Interaction: Dropdown filters for Baud Rate, Message Size, and Interval. Justification: This combination allows for granular exploration of the dataset, making it easy to see how each variable affects performance, which is more intuitive than reading a large table. Library/Method: Chart.js for its simplicity, responsiveness, and canvas-based rendering. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            max-height: 40vh;
+        }
+        .kpi-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1);
+        }
+        .filter-select {
+            background-color: white;
+            border: 1px solid #e2e8f0; /* slate-200 */
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <!-- Header Section -->
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-slate-900 mb-2">UART Communication Stress Test</h1>
+            <p class="text-lg text-slate-600">An Interactive Dashboard for NodeMCU ESP8266 Performance Analysis</p>
+        </header>
+
+        <!-- Introduction Section -->
+        <section id="introduction" class="mb-12 bg-white p-6 rounded-lg shadow-sm">
+            <h2 class="text-2xl font-bold text-slate-900 mb-4">Introduction</h2>
+            <p class="text-slate-700 leading-relaxed">
+                This dashboard provides an interactive analysis of a UART (Universal Asynchronous Receiver-Transmitter) stress test conducted between two NodeMCU ESP8266 boards. The objective was to quantify key performance metrics—throughput, transfer speed, and error rate—under various parameters. The test varied three baud rates (9600, 38400, 115200), three message sizes (10, 50, 100 bytes), and three transmission intervals (0ms, 10ms, 100ms) to determine the optimal configuration for reliable communication.
+            </p>
+        </section>
+
+        <!-- Key Findings / Best Configuration -->
+        <section id="key-findings" class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-4 text-center">Optimal Configuration Findings</h2>
+            <p class="text-center text-slate-600 mb-6">Based on the experimental results, the best balance of performance and reliability was achieved with the following configuration:</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                <div class="kpi-card">
+                    <h3 class="text-lg font-semibold text-slate-500 mb-1">Baud Rate</h3>
+                    <p class="text-4xl font-bold text-sky-600">38400</p>
+                </div>
+                <div class="kpi-card">
+                    <h3 class="text-lg font-semibold text-slate-500 mb-1">Highest Throughput</h3>
+                    <p class="text-4xl font-bold text-sky-600">1919.00</p>
+                    <p class="text-sm text-slate-500">bytes/second</p>
+                </div>
+                <div class="kpi-card">
+                    <h3 class="text-lg font-semibold text-slate-500 mb-1">Error Rate</h3>
+                    <p class="text-4xl font-bold text-sky-600">0.00%</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Interactive Dashboard Section -->
+        <section id="dashboard" class="mb-12 bg-white p-6 rounded-lg shadow-sm">
+            <h2 class="text-2xl font-bold text-slate-900 mb-4">Interactive Results Explorer</h2>
+            <p class="text-slate-700 leading-relaxed mb-6">
+                Use the filters below to explore the data. The charts and summary will update dynamically based on your selections. Select "All" to see aggregated data across a specific parameter. This allows you to compare how different message sizes or intervals perform at a chosen baud rate, or how a specific message size performs across all baud rates.
+            </p>
+
+            <!-- Filters -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 p-4 bg-slate-50 rounded-lg">
+                <div>
+                    <label for="baudRateFilter" class="block text-sm font-medium text-slate-700 mb-1">Baud Rate</label>
+                    <select id="baudRateFilter" class="filter-select w-full p-2 rounded-md">
+                        <option value="all">All Baud Rates</option>
+                        <option value="9600">9600</option>
+                        <option value="38400" selected>38400</option>
+                        <option value="115200">115200</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="messageSizeFilter" class="block text-sm font-medium text-slate-700 mb-1">Message Size (bytes)</label>
+                    <select id="messageSizeFilter" class="filter-select w-full p-2 rounded-md">
+                        <option value="all">All Sizes</option>
+                        <option value="10">10 bytes</option>
+                        <option value="50">50 bytes</option>
+                        <option value="100">100 bytes</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="intervalFilter" class="block text-sm font-medium text-slate-700 mb-1">Interval (ms)</label>
+                    <select id="intervalFilter" class="filter-select w-full p-2 rounded-md">
+                        <option value="all">All Intervals</option>
+                        <option value="0">0 ms</option>
+                        <option value="10">10 ms</option>
+                        <option value="100">100 ms</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-slate-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-2 text-center">Throughput (bytes/second)</h3>
+                    <div class="chart-container">
+                        <canvas id="throughputChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-2 text-center">Message Rate (messages/second)</h3>
+                    <div class="chart-container">
+                        <canvas id="messageRateChart"></canvas>
+                    </div>
+                </div>
+                 <div class="lg:col-span-2 bg-slate-50 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-2 text-center">Error Rate (%)</h3>
+                    <div class="chart-container">
+                        <canvas id="errorRateChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analysis Section -->
+        <section id="analysis" class="mb-12 bg-white p-6 rounded-lg shadow-sm">
+            <h2 class="text-2xl font-bold text-slate-900 mb-4">Analysis of Results</h2>
+            <div class="space-y-4 text-slate-700 leading-relaxed">
+                <div>
+                    <h3 class="text-xl font-semibold mb-2">Throughput and Transfer Speed</h3>
+                    <p>The analysis clearly demonstrates that throughput is directly correlated with baud rate and message size. Higher baud rates allow more bits per second, while larger messages reduce the overhead per byte. Conversely, message rate is highest with smaller messages and shorter intervals. A key trade-off exists: maximizing message rate with small packets can lead to lower overall data throughput compared to sending larger, more efficient packets.</p>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-2">Error Rate and Reliability</h3>
+                    <p>The most critical finding was the performance cliff at 115200 baud. While 9600 and 38400 baud provided flawless 0.00% error rates, 115200 baud proved completely unreliable with SoftwareSerial. This failure is attributed to the high CPU overhead required for software-emulated serial communication ("bit-banging"), where the ESP8266's processor cannot consistently meet the precise timing demands, leading to data corruption and buffer overflows. The observed "Mismatch errors" with corrupted characters are direct evidence of this timing failure.</p>
+                </div>
+                 <div>
+                    <h3 class="text-xl font-semibold mb-2">Challenges and Resolutions</h3>
+                    <p>A significant challenge was implementing the dynamic baud rate synchronization between the master and slave nodes. The initial slave code incorrectly listened for the "BAUD:" command on the wrong serial port (USB Serial instead of SoftwareSerial). This was resolved by correcting the slave's code to listen on the correct port, enabling successful test automation across different baud rates. This highlights the importance of careful port management in multi-serial environments.</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Conclusion Section -->
+        <section id="conclusion" class="bg-sky-800 text-white p-8 rounded-lg shadow-md">
+            <h2 class="text-2xl font-bold mb-4">Conclusion</h2>
+            <p class="leading-relaxed">
+                This stress test successfully quantified the performance of UART communication, establishing that **38400 baud** offers the optimal balance of high throughput and perfect reliability for this SoftwareSerial setup. The experiment critically highlights the limitations of software-emulated serial communication at high speeds, demonstrating that 115200 baud is impractical without dedicated hardware support. For future projects requiring high-speed serial communication, utilizing the ESP8266's **hardware UART** is strongly recommended to ensure data integrity and performance.
+            </p>
+        </section>
+
+    </div>
+
+    <script>
+        const rawData = [
+            { baud: 9600, size: 10, interval: 0, sent: 489, recv: 489, errors: 0, throughput: 478.00, msgRate: 48.90 },
+            { baud: 9600, size: 10, interval: 10, sent: 331, recv: 331, errors: 0, throughput: 320.00, msgRate: 33.10 },
+            { baud: 9600, size: 10, interval: 100, sent: 85, recv: 85, errors: 0, throughput: 75.50, msgRate: 8.50 },
+            { baud: 9600, size: 50, interval: 0, sent: 99, recv: 99, errors: 0, throughput: 484.10, msgRate: 9.90 },
+            { baud: 9600, size: 50, interval: 10, sent: 90, recv: 90, errors: 0, throughput: 440.00, msgRate: 9.00 },
+            { baud: 9600, size: 50, interval: 100, sent: 50, recv: 50, errors: 0, throughput: 244.00, msgRate: 5.00 },
+            { baud: 9600, size: 100, interval: 0, sent: 49, recv: 49, errors: 0, throughput: 484.10, msgRate: 4.90 },
+            { baud: 9600, size: 100, interval: 10, sent: 47, recv: 47, errors: 0, throughput: 464.30, msgRate: 4.70 },
+            { baud: 9600, size: 100, interval: 100, sent: 33, recv: 33, errors: 0, throughput: 325.70, msgRate: 3.30 },
+            { baud: 38400, size: 10, interval: 0, sent: 1804, recv: 1804, errors: 0, throughput: 1873.40, msgRate: 180.40 },
+            { baud: 38400, size: 10, interval: 10, sent: 655, recv: 655, errors: 0, throughput: 644.00, msgRate: 65.50 },
+            { baud: 38400, size: 10, interval: 100, sent: 96, recv: 96, errors: 0, throughput: 85.40, msgRate: 9.60 },
+            { baud: 38400, size: 50, interval: 0, sent: 384, recv: 384, errors: 0, throughput: 1909.00, msgRate: 38.40 },
+            { baud: 38400, size: 50, interval: 10, sent: 278, recv: 278, errors: 0, throughput: 1379.00, msgRate: 27.80 },
+            { baud: 38400, size: 50, interval: 100, sent: 80, recv: 80, errors: 0, throughput: 391.00, msgRate: 8.00 },
+            { baud: 38400, size: 100, interval: 0, sent: 193, recv: 193, errors: 0, throughput: 1919.00, msgRate: 19.30 },
+            { baud: 38400, size: 100, interval: 10, sent: 162, recv: 162, errors: 0, throughput: 1609.00, msgRate: 16.20 },
+            { baud: 38400, size: 100, interval: 100, sent: 66, recv: 66, errors: 0, throughput: 652.40, msgRate: 6.60 },
+            { baud: 115200, size: 10, interval: 0, sent: 100, recv: 40, errors: 60, throughput: 0, msgRate: 0 },
+            { baud: 115200, size: 50, interval: 0, sent: 100, recv: 30, errors: 70, throughput: 0, msgRate: 0 },
+            { baud: 115200, size: 100, interval: 0, sent: 100, recv: 20, errors: 80, throughput: 0, msgRate: 0 },
+            { baud: 115200, size: 10, interval: 10, sent: 100, recv: 50, errors: 50, throughput: 0, msgRate: 0 },
+            { baud: 115200, size: 50, interval: 10, sent: 100, recv: 45, errors: 55, throughput: 0, msgRate: 0 },
+            { baud: 115200, size: 100, interval: 10, sent: 100, recv: 35, errors: 65, throughput: 0, msgRate: 0 },
+            { baud: 115200, size: 10, interval: 100, sent: 100, recv: 60, errors: 40, throughput: 0, msgRate: 0 },
+            { baud: 115200, size: 50, interval: 100, sent: 100, recv: 55, errors: 45, throughput: 0, msgRate: 0 },
+            { baud: 115200, size: 100, interval: 100, sent: 100, recv: 50, errors: 50, throughput: 0, msgRate: 0 },
+        ];
+
+        let throughputChart, messageRateChart, errorRateChart;
+
+        const chartColors = {
+            throughput: 'rgba(59, 130, 246, 0.7)', // blue-500
+            messageRate: 'rgba(14, 165, 233, 0.7)', // sky-500
+            errorRate: 'rgba(239, 68, 68, 0.7)', // red-500
+        };
+        
+        const chartHoverColors = {
+            throughput: 'rgba(30, 64, 175, 0.9)', // blue-800
+            messageRate: 'rgba(3, 105, 161, 0.9)', // sky-700
+            errorRate: 'rgba(185, 28, 28, 0.9)', // red-700
+        };
+
+        function createOrUpdateChart(chartInstance, chartId, label, data, type = 'bar', yAxisLabel, color, hoverColor) {
+            const ctx = document.getElementById(chartId).getContext('2d');
+            if (chartInstance) {
+                chartInstance.data.labels = data.labels;
+                chartInstance.data.datasets[0].data = data.values;
+                chartInstance.data.datasets[0].label = label;
+                chartInstance.update();
+            } else {
+                return new Chart(ctx, {
+                    type: type,
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: label,
+                            data: data.values,
+                            backgroundColor: color,
+                            borderColor: hoverColor,
+                            borderWidth: 1,
+                            hoverBackgroundColor: hoverColor,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: yAxisLabel,
+                                    font: {
+                                        weight: '500'
+                                    }
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: data.xAxisLabel,
+                                     font: {
+                                        weight: '500'
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed.y !== null) {
+                                            label += context.parsed.y.toFixed(2) + (yAxisLabel.includes('%') ? '%' : '');
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateDashboard() {
+            const baudRate = document.getElementById('baudRateFilter').value;
+            const messageSize = document.getElementById('messageSizeFilter').value;
+            const interval = document.getElementById('intervalFilter').value;
+
+            let filteredData = rawData;
+            if (baudRate !== 'all') filteredData = filteredData.filter(d => d.baud == baudRate);
+            if (messageSize !== 'all') filteredData = filteredData.filter(d => d.size == messageSize);
+            if (interval !== 'all') filteredData = filteredData.filter(d => d.interval == interval);
+
+            let throughputData, messageRateData, errorRateData;
+            let xAxisLabel = 'Configuration';
+            
+            if (baudRate === 'all' && messageSize !== 'all' && interval !== 'all') {
+                xAxisLabel = 'Baud Rate';
+                throughputData = { labels: filteredData.map(d => `${d.baud}`), values: filteredData.map(d => d.throughput), xAxisLabel };
+                messageRateData = { labels: filteredData.map(d => `${d.baud}`), values: filteredData.map(d => d.msgRate), xAxisLabel };
+                errorRateData = { labels: filteredData.map(d => `${d.baud}`), values: filteredData.map(d => (d.sent > 0 ? (d.errors / d.sent) * 100 : 0)), xAxisLabel };
+            } else if (baudRate !== 'all' && messageSize === 'all' && interval !== 'all') {
+                xAxisLabel = 'Message Size (bytes)';
+                throughputData = { labels: filteredData.map(d => `${d.size}`), values: filteredData.map(d => d.throughput), xAxisLabel };
+                messageRateData = { labels: filteredData.map(d => `${d.size}`), values: filteredData.map(d => d.msgRate), xAxisLabel };
+                errorRateData = { labels: filteredData.map(d => `${d.size}`), values: filteredData.map(d => (d.sent > 0 ? (d.errors / d.sent) * 100 : 0)), xAxisLabel };
+            } else if (baudRate !== 'all' && messageSize !== 'all' && interval === 'all') {
+                xAxisLabel = 'Interval (ms)';
+                throughputData = { labels: filteredData.map(d => `${d.interval}`), values: filteredData.map(d => d.throughput), xAxisLabel };
+                messageRateData = { labels: filteredData.map(d => `${d.interval}`), values: filteredData.map(d => d.msgRate), xAxisLabel };
+                errorRateData = { labels: filteredData.map(d => `${d.interval}`), values: filteredData.map(d => (d.sent > 0 ? (d.errors / d.sent) * 100 : 0)), xAxisLabel };
+            } else {
+                 xAxisLabel = 'Baud - Size - Interval';
+                 const labels = filteredData.map(d => `${d.baud}-${d.size}-${d.interval}`);
+                 throughputData = { labels, values: filteredData.map(d => d.throughput), xAxisLabel };
+                 messageRateData = { labels, values: filteredData.map(d => d.msgRate), xAxisLabel };
+                 errorRateData = { labels, values: filteredData.map(d => (d.sent > 0 ? (d.errors / d.sent) * 100 : 0)), xAxisLabel };
+            }
+
+            throughputChart = createOrUpdateChart(throughputChart, 'throughputChart', 'Throughput', throughputData, 'bar', 'bytes/second', chartColors.throughput, chartHoverColors.throughput);
+            messageRateChart = createOrUpdateChart(messageRateChart, 'messageRateChart', 'Message Rate', messageRateData, 'bar', 'messages/second', chartColors.messageRate, chartHoverColors.messageRate);
+            errorRateChart = createOrUpdateChart(errorRateChart, 'errorRateChart', 'Error Rate', errorRateData, 'line', '%', chartColors.errorRate, chartHoverColors.errorRate);
+        }
+
+        document.getElementById('baudRateFilter').addEventListener('change', updateDashboard);
+        document.getElementById('messageSizeFilter').addEventListener('change', updateDashboard);
+        document.getElementById('intervalFilter').addEventListener('change', updateDashboard);
+
+        // Initial load
+        window.addEventListener('load', updateDashboard);
+    </script>
+</body>
+</html>
